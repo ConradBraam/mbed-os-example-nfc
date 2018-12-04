@@ -29,5 +29,7 @@ We used the following diagram: using the Raspbery Pi explorer (PN512) board, use
 Patch using jumper wires to the             
 indicated pins on the Shield.            
 
+The user button is used to enable/disable discovery loop function - press to start discovery.
+
 Requires an NFC reader and the nfcpy libraries on the computer. see original/official docs
 Run the python test program and press 5 and enter, to poll for a tag (2 seconds.)
