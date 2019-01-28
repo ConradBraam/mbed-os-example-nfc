@@ -39,6 +39,10 @@ using mbed::nfc::ndef::common::Text;
 using mbed::nfc::ndef::common::URI;
 using mbed::nfc::ndef::common::span_from_cstr;
 
+uint8_t _ndef_write_buffer[8192];
+size_t _ndef_write_buffer_used = 0;
+
+
 /**
  * Manage the NFC discovery process and the local device operating in target mode.
  *
@@ -75,14 +79,17 @@ public:
      */
     nfc_err_t init()
     {
+		printf("init controller\r\n");
         nfc_err_t err = _nfc_controller.initialize();
         if (err) {
             return err;
         }
 
         // register callbacks
+		printf("setup callbacks\r\n");
         _nfc_controller.set_delegate(this);
 
+		printf("set protocols\r\n");
         nfc_rf_protocols_bitmask_t protocols = { 0 };
         protocols.target_iso_dep = 1;
         return _nfc_controller.configure_rf_protocols(protocols);
@@ -96,6 +103,7 @@ public:
      */
     nfc_err_t start_discovery()
     {
+		printf("start peer discovery\r\n");
         return _nfc_controller.start_discovery();
     }
 
@@ -103,19 +111,35 @@ private:
     /* ------------------------------------------------------------------------
      * Implementation of NFCRemoteInitiator::Delegate
      */
-    virtual void on_connected() { }
-
+    virtual void on_connected() { 
+		//printf("   on_connected()\r\n");
+	}
     virtual void on_disconnected()
     {
+		printf("on_disconnected()\r\n");
         // reset the state of the remote initiator
         _nfc_remote_initiator->set_delegate(NULL);
+		printf("reset initiator()\r\n");
         _nfc_remote_initiator.reset();
 
         // restart peer discovery
+		printf("restart peer discovery\r\n");
         _nfc_controller.start_discovery();
     }
 
-    virtual void parse_ndef_message(const Span<const uint8_t> &buffer) { }
+	
+    virtual void parse_ndef_message(const Span<const uint8_t> &buffer) 
+	{ 
+size_t len = buffer.size();
+    // copy remotely written message into our dummy buffer
+    if (len <= sizeof(_ndef_write_buffer)) {
+        printf("Store remote ndef message of size %d\r\n", len);
+        //memcpy(_ndef_write_buffer, buffer.data(), len);
+        //_ndef_write_buffer_used = len;
+    } else {
+        printf("Remote ndef message of size %d too large!\r\n", len);
+    }
+	}
 
     virtual size_t build_ndef_message(const Span<uint8_t> &buffer)
     {
@@ -141,7 +165,9 @@ private:
      */
     virtual void on_discovery_terminated(nfc_discovery_terminated_reason_t reason)
     {
+		//printf("on_discovery_terminated()\r\n");
         if(reason != nfc_discovery_terminated_completed) {
+			printf("restart peer discovery\r\n");
             _nfc_controller.start_discovery();
         }
     }
@@ -152,12 +178,13 @@ private:
         _nfc_remote_initiator = nfc_initiator;
         _nfc_remote_initiator->set_delegate(this);
         _nfc_remote_initiator->connect();
+        printf("exit on_nfc_initiator_discovered\r\n");
     }
 
     mbed::nfc::PN512SPITransportDriver _pn512_transport;
     mbed::nfc::PN512Driver _pn512_driver;
     EventQueue& _queue;
-    uint8_t _ndef_buffer[1024];
+    uint8_t _ndef_buffer[2048];
     NFCController _nfc_controller;
     SharedPtr<NFCRemoteInitiator> _nfc_remote_initiator;
 };
@@ -165,12 +192,13 @@ private:
 int main()
 {
     events::EventQueue queue;
-    NFCProcess nfc_process(queue);
+    NFCProcess* nfc_process = new NFCProcess(queue);
+    printf("NFC smartposter controller example.\r\n");
 
-    nfc_err_t ret = nfc_process.init();
+    nfc_err_t ret = nfc_process->init();
     printf("Initialize: ret = %u\r\n", ret);
 
-    ret = nfc_process.start_discovery();
+    ret = nfc_process->start_discovery();
     printf("Start Discovery: ret = %u\r\n", ret);
 
     queue.dispatch_forever();

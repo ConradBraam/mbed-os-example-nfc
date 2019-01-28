@@ -1,0 +1,37 @@
+# python script fragment to reproduce issue
+# Writting wirelessly >1000 bytes may time out if a PN512 controller is used on the target.
+
+# This repro scriptlet requires a nfc reader, the USB connected SCL3711 nfc dongle was used.
+
+import nfc
+clf = nfc.ContactlessFrontend()
+clf.open('usb')
+def f():
+   tag = clf.connect(rdwr={'on-connect': lambda tag: False})
+   print(tag)
+   assert tag.ndef is not None
+   for record in tag.ndef.records:
+      print(record)
+   clf.device.mute()
+
+'''
+return a 'T'ext text ndef record
+'''
+def make_textrecord(text, language='en-US'):
+    return nfc.ndef.Message(nfc.ndef.TextRecord(text, language))
+
+def w():
+   tag = clf.connect(rdwr={'on-connect': lambda tag: False})
+   print(tag)
+   #assert tag.ndef is not None
+   text = '0123456789'
+   test_text = text*90
+   while True:
+      print("Program %d string" % len(   test_text ))
+      tag.ndef.message = test_text
+      print("Programmed tag OK.")
+      test_text += text
+      clf.device.mute()
+      tag = clf.connect(rdwr={'on-connect': lambda tag: False})
+
+
